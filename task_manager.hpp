@@ -22,7 +22,6 @@ namespace task_manager {
     using RepeatableTaskFunction = std::function<bool()>;
     using DelayedTaskFunction = std::function<void()>;
     using ContinuousTaskFunction = std::function<bool()>;
-    using DeferredTaskFunction = std::function<void()>;
     using AsyncTaskFunction = std::function<void(AsyncTask&)>;
 
     template<typename... Args>
