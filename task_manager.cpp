@@ -32,11 +32,6 @@ namespace task_manager {
         return m_thread.get_stop_token().stop_requested();
     }
 
-    CoroutineTask::YieldInstruction CoroutineTask::wait_for(double time) {
-        const double current_time = get_time();
-        return current_time + time;
-    }
-
     void TaskManager::add_immediate_task(ImmediateTaskFunction task_function) {
         m_immediate_tasks_incoming.emplace_back(std::move(task_function));
     }
@@ -53,7 +48,6 @@ namespace task_manager {
     }
 
     void TaskManager::add_delayed_task(DelayedTaskFunction task_function, double delay) {
-
         DelayedTask& task = m_delayed_tasks_incoming.emplace_back(std::move(task_function), delay);
         task.m_last_time = get_time();
     }
@@ -92,6 +86,7 @@ namespace task_manager {
         m_async_tasks.clear();
 
         // Don't cancel these tasks, just execute them
+        // You must not add additional tasks after calling clear()
         while (!m_immediate_thread_safe_tasks_incoming.empty() || !m_immediate_thread_safe_tasks_active.empty()) {
             update_immediate_thread_safe_tasks();
         }
@@ -118,7 +113,7 @@ namespace task_manager {
 
         m_immediate_thread_safe_tasks_active.clear();
         {
-            std::lock_guard guard (m_mutex);
+            std::lock_guard guard {m_mutex};
             std::swap(m_immediate_thread_safe_tasks_incoming, m_immediate_thread_safe_tasks_active);
         }
     }
@@ -192,17 +187,15 @@ namespace task_manager {
                     resume_coroutine_task(task);
                     break;
                 case 1: {
-                    if (const double target_time = std::get<1>(promise.m_yield_instruction); get_time() > target_time) {
+                    if (const auto target_time = std::get<1>(promise.m_yield_instruction); get_time() > target_time) {
                         resume_coroutine_task(task);
                     }
-
                     break;
                 }
                 case 2: {
                     if (const auto& condition = std::get<2>(promise.m_yield_instruction); condition()) {
                         resume_coroutine_task(task);
                     }
-
                     break;
                 }
             }
@@ -211,9 +204,9 @@ namespace task_manager {
         // Must destroy tasks in a second and third pass
         // Destroying a coroutine invalidates it, which disallows calling done()
 
-        const auto removed_iter {remove_if_swap(m_coroutine_tasks.begin(), m_coroutine_tasks.end(), [](const CoroutineTask& task) {
+        const auto removed_iter = remove_if_swap(m_coroutine_tasks.begin(), m_coroutine_tasks.end(), [](const CoroutineTask& task) {
             return task.m_handle.done();
-        })};
+        });
 
         for (auto iter = removed_iter; iter != m_coroutine_tasks.end(); iter++) {
             iter->m_handle.destroy();

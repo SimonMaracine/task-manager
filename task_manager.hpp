@@ -106,17 +106,22 @@ namespace task_manager {
 
     class CoroutineTask {
     public:
-        using DefaultYieldInstruction = std::monostate;
-        using YieldInstruction = std::variant<DefaultYieldInstruction, double, std::function<bool()>>;
+        using None = std::monostate;
+        using TargetTime = double;
+        using Condition = std::function<bool()>;
+        using YieldInstruction = std::variant<None, TargetTime, Condition>;
 
-        static YieldInstruction wait_for(double time);
+        static YieldInstruction wait_for(TargetTime target_time) {
+            const double current_time = get_time();
+            return current_time + target_time;
+        }
 
-        static YieldInstruction wait_until(const std::function<bool()>& condition) {
+        static YieldInstruction wait_until(const Condition& condition) {
             return condition;
         }
 
         static YieldInstruction none() {
-            return DefaultYieldInstruction();
+            return None();
         }
 
         class promise_type {
